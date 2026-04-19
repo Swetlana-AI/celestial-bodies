@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Celestial Bodies — Current Planetary Positions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What are the current positions of the planets?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "This page shows the live geocentric ecliptic longitude of the Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, and Pluto, mapped to the tropical zodiac. Each planet's sign and degree is calculated in your browser in real time and refreshed every minute."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How are the planetary positions calculated?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Positions are computed locally using the open-source Astronomy Engine JavaScript library, which is based on VSOP87 and NASA JPL algorithms. No external API is called, so the page works offline after the initial load."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What zodiac system does this page use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The page uses the tropical zodiac, where each of the twelve signs occupies exactly 30 degrees of the ecliptic, starting from 0° Aries at the vernal equinox point. This is the system used in most Western astrology."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What does retrograde mean on this chart?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A planet is marked retrograde (℞) when its apparent ecliptic longitude is decreasing — that is, when it appears to move backwards through the zodiac from Earth's perspective. Retrograde status is detected by comparing each planet's position now with its position 24 hours later."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which sign is Venus currently in?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Hover over Venus on the zodiac wheel or in the list to see its current sign, exact degree, and whether it is direct or retrograde. The chart updates automatically every minute."
+      }
+    }
+  ]
+}
+</script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-deep: #050811;
+    --ink: #e8dcc4;
+    --ink-dim: #a59682;
+    --ink-faint: #5a5040;
+    --gold: #d4a94a;
+    --gold-bright: #f0c668;
+    --crimson: #a64545;
+    --line: rgba(232, 220, 196, 0.15);
+    --line-strong: rgba(232, 220, 196, 0.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg-deep);
+    color: var(--ink);
+    font-family: 'Cormorant Garamond', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(212, 169, 74, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(166, 69, 69, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, #0a0e1a 0%, #050811 100%);
+    position: relative;
+  }
+
+  /* Star field */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, white, transparent),
+      radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,0.8), transparent),
+      radial-gradient(1px 1px at 85% 15%, white, transparent),
+      radial-gradient(1px 1px at 35% 85%, rgba(255,255,255,0.6), transparent),
+      radial-gradient(1px 1px at 75% 40%, white, transparent),
+      radial-gradient(1px 1px at 15% 65%, rgba(255,255,255,0.7), transparent),
+      radial-gradient(1px 1px at 90% 80%, white, transparent),
+      radial-gradient(1px 1px at 45% 20%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1px 1px at 5% 45%, white, transparent),
+      radial-gradient(1px 1px at 65% 55%, rgba(255,255,255,0.6), transparent);
+    background-size: 100% 100%;
+    pointer-events: none;
+    animation: twinkle 8s ease-in-out infinite;
+    z-index: 0;
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* Grain overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.08;
+    pointer-events: none;
+    z-index: 1;
+    mix-blend-mode: overlay;
+  }
+
+  .container {
+    position: relative;
+    z-index: 2;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+  }
+
+  header {
+    text-align: center;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 2rem;
+    margin-bottom: 3rem;
+    position: relative;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+
+  .eyebrow a {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s ease, color 0.3s ease;
+  }
+
+  .eyebrow a:hover {
+    color: var(--gold-bright);
+    border-bottom-color: var(--gold-bright);
+  }
+
+  h1 {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    font-style: italic;
+    line-height: 1;
+    margin-bottom: 1rem;
+  }
+
+  h1 .amp {
+    color: var(--gold);
+    font-weight: 400;
+  }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--ink-dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .date-bar {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--ink-dim);
+    letter-spacing: 0.15em;
+    margin-top: 1rem;
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .date-bar span strong {
+    color: var(--gold);
+    font-weight: 500;
+  }
+
+  /* Main layout */
+  .main-grid {
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr);
+    gap: 3rem;
+    align-items: start;
+  }
+
+  @media (max-width: 900px) {
+    .main-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Wheel section */
+  .wheel-wrap {
+    position: sticky;
+    top: 2rem;
+    aspect-ratio: 1;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .wheel-wrap svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 40px rgba(212, 169, 74, 0.15));
+    overflow: visible;
+  }
+
+  /* Planet hover group — the invisible hit area + visuals */
+  .planet-group {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .planet-group .hit-area {
+    fill: transparent;
+    pointer-events: all;
+  }
+
+  .planet-group .planet-dot,
+  .planet-group .planet-label {
+    transition: all 0.25s ease;
+  }
+
+  /* When hovered or .active */
+  .planet-group:hover .planet-dot,
+  .planet-group.active .planet-dot {
+    r: 6;
+    filter: drop-shadow(0 0 12px var(--gold-bright));
+  }
+
+  .planet-group:hover .planet-label,
+  .planet-group.active .planet-label {
+    fill: var(--gold-bright);
+    font-weight: 500;
+    font-size: 18px;
+  }
+
+  .planet-group:hover .planet-line,
+  .planet-group.active .planet-line {
+    stroke: var(--gold);
+    stroke-dasharray: none;
+    stroke-width: 0.8;
+  }
+
+  /* Dim other planets when one is active */
+  .wheel-wrap svg.has-active .planet-group:not(.active) {
+    opacity: 0.3;
+  }
+
+  /* Tooltip/info card */
+  .info-card {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+    background: linear-gradient(145deg, rgba(20, 24, 36, 0.98), rgba(10, 14, 26, 0.98));
+    border: 1px solid var(--gold);
+    padding: 1rem 1.25rem;
+    min-width: 220px;
+    max-width: 280px;
+    box-shadow:
+      0 0 0 1px rgba(212, 169, 74, 0.15),
+      0 20px 40px rgba(0, 0, 0, 0.6),
+      0 0 60px rgba(212, 169, 74, 0.15);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    backdrop-filter: blur(8px);
+  }
+
+  .info-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Ornamental corners */
+  .info-card::before,
+  .info-card::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--gold);
+  }
+  .info-card::before {
+    top: -1px; left: -1px;
+    border-right: none; border-bottom: none;
+  }
+  .info-card::after {
+    bottom: -1px; right: -1px;
+    border-left: none; border-top: none;
+  }
+
+  .info-card .ic-glyph {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    color: var(--gold);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+  }
+
+  .info-card .ic-headline {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.25rem;
+    color: var(--ink);
+    line-height: 1.3;
+    margin-bottom: 0.5rem;
+  }
+
+  .info-card .ic-headline em {
+    color: var(--gold-bright);
+    font-style: italic;
+  }
+
+  .info-card .ic-detail {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--ink-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--line);
+    margin-top: 0.5rem;
+    line-height: 1.6;
+  }
+
+  .info-card .ic-detail .retro {
+    color: var(--crimson);
+  }
+
+  /* Planets list */
+  .planets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gold);
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .section-title .count {
+    color: var(--ink-faint);
+  }
+
+  .planet-row {
+    display: grid;
+    grid-template-columns: 3rem 1fr auto;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1.25rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+    transition: background 0.3s ease, transform 0.3s ease;
+    cursor: pointer;
+    opacity: 0;
+    animation: fadeIn 0.6s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .planet-row:hover,
+  .planet-row.active {
+    background: rgba(212, 169, 74, 0.08);
+    transform: translateX(4px);
+  }
+
+  .planet-row.active {
+    border-left: 2px solid var(--gold);
+    padding-left: calc(0.5rem - 2px);
+  }
+
+  .planet-row:hover .glyph,
+  .planet-row.active .glyph {
+    color: var(--gold-bright);
+    transform: scale(1.1);
+  }
+
+  .glyph {
+    font-size: 2rem;
+    color: var(--gold);
+    text-align: center;
+    transition: all 0.3s ease;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  .planet-info .name {
+    font-size: 1.4rem;
+    font-weight: 400;
+    letter-spacing: 0.03em;
+  }
+
+  .planet-info .sign-line {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--ink-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+  }
+
+  .planet-info .sign-line .sign-name {
+    color: var(--ink);
+  }
+
+  .planet-info .sign-line .retro {
+    color: var(--crimson);
+    margin-left: 0.5rem;
+  }
+
+  .planet-degree {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .degree-big {
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+  }
+
+  .degree-small {
+    font-size: 0.65rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.2em;
+    margin-top: 0.25rem;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 4rem;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    line-height: 1.8;
+  }
+
+  footer a {
+    color: var(--ink-dim);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line);
+    transition: color 0.2s;
+  }
+
+  footer a:hover { color: var(--gold); }
+
+  /* SVG wheel styling */
+  .zodiac-ring { fill: none; stroke: var(--line-strong); stroke-width: 0.5; }
+  .zodiac-division { stroke: var(--line); stroke-width: 0.3; }
+  .zodiac-sign-label { fill: var(--ink-dim); font-family: 'Cormorant Garamond', serif; font-size: 14px; font-style: italic; }
+  .zodiac-glyph { fill: var(--gold); font-family: 'Cormorant Garamond', serif; font-size: 22px; }
+  .degree-tick { stroke: var(--line); stroke-width: 0.3; }
+  .degree-tick-major { stroke: var(--line-strong); stroke-width: 0.5; }
+  .planet-dot { fill: var(--gold); stroke: var(--bg-deep); stroke-width: 1.5; filter: drop-shadow(0 0 4px var(--gold)); }
+  .planet-dot-sun { fill: var(--gold-bright); filter: drop-shadow(0 0 10px var(--gold-bright)); }
+  .planet-dot-moon { fill: #d4d4e0; filter: drop-shadow(0 0 6px rgba(212, 212, 224, 0.8)); }
+  .planet-label { fill: var(--ink); font-family: 'Cormorant Garamond', serif; font-size: 15px; }
+  .planet-line { stroke: var(--ink-faint); stroke-width: 0.4; stroke-dasharray: 2 2; }
+  .center-text { fill: var(--ink-dim); font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 2px; text-transform: uppercase; text-anchor: middle; }
+  .center-ornament { fill: none; stroke: var(--gold); stroke-width: 0.5; opacity: 0.5; }
+
+  .loading {
+    text-align: center;
+    padding: 4rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ink-dim);
+    letter-spacing: 0.2em;
+    font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="eyebrow">✦ by <a href="https://swetlanaai.com" target="_blank" rel="noopener">Swetlana AI</a> ✦</div>
+      <h1>Celestial <span class="amp">Bodies</span></h1>
+      <div class="subtitle">Current Positions of the Wandering Stars</div>
+      <div class="date-bar" id="dateBar"></div>
+    </header>
+
+    <div class="main-grid">
+      <div class="wheel-wrap">
+        <svg id="wheel" viewBox="-200 -200 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <div class="planets-list">
+        <div class="section-title">
+          <span>The Celestial Bodies</span>
+          <span class="count">10 ⋆</span>
+        </div>
+        <div id="planetsContainer">
+          <div class="loading">Consulting the stars…</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Computed locally with the Astronomy Engine · Tropical zodiac · Geocentric ecliptic longitude<br>
+      No API required · <a href="https://github.com/cosinekitty/astronomy" target="_blank" rel="noopener">astronomy-engine</a>
+    </footer>
+  </div>
+
+  <!-- Floating info card -->
+  <div class="info-card" id="infoCard" aria-hidden="true">
+    <div class="ic-glyph" id="icGlyph"></div>
+    <div class="ic-headline" id="icHeadline"></div>
+    <div class="ic-detail" id="icDetail"></div>
+  </div>
+
+<script>
+  // ———————————————————————————————————————
+  //  Zodiac signs — order from 0° Aries
+  // ———————————————————————————————————————
+  const SIGNS = [
+    { name: 'Aries',       glyph: '♈', element: 'Fire' },
+    { name: 'Taurus',      glyph: '♉', element: 'Earth' },
+    { name: 'Gemini',      glyph: '♊', element: 'Air' },
+    { name: 'Cancer',      glyph: '♋', element: 'Water' },
+    { name: 'Leo',         glyph: '♌', element: 'Fire' },
+    { name: 'Virgo',       glyph: '♍', element: 'Earth' },
+    { name: 'Libra',       glyph: '♎', element: 'Air' },
+    { name: 'Scorpio',     glyph: '♏', element: 'Water' },
+    { name: 'Sagittarius', glyph: '♐', element: 'Fire' },
+    { name: 'Capricorn',   glyph: '♑', element: 'Earth' },
+    { name: 'Aquarius',    glyph: '♒', element: 'Air' },
+    { name: 'Pisces',      glyph: '♓', element: 'Water' },
+  ];
+
+  const BODIES = [
+    { name: 'Sun',     glyph: '☉', body: 'Sun',     dotClass: 'planet-dot-sun' },
+    { name: 'Moon',    glyph: '☽', body: 'Moon',    dotClass: 'planet-dot-moon' },
+    { name: 'Mercury', glyph: '☿', body: 'Mercury', dotClass: '' },
+    { name: 'Venus',   glyph: '♀', body: 'Venus',   dotClass: '' },
+    { name: 'Mars',    glyph: '♂', body: 'Mars',    dotClass: '' },
+    { name: 'Jupiter', glyph: '♃', body: 'Jupiter', dotClass: '' },
+    { name: 'Saturn',  glyph: '♄', body: 'Saturn',  dotClass: '' },
+    { name: 'Uranus',  glyph: '♅', body: 'Uranus',  dotClass: '' },
+    { name: 'Neptune', glyph: '♆', body: 'Neptune', dotClass: '' },
+    { name: 'Pluto',   glyph: '♇', body: 'Pluto',   dotClass: '' },
+  ];
+
+  // ———————————————————————————————————————
+  //  Compute geocentric ecliptic longitude
+  // ———————————————————————————————————————
+  function getEclipticLongitude(bodyName, date) {
+    // GeoVector accepts a JS Date or AstroTime
+    const vec = Astronomy.GeoVector(bodyName, date, true);
+    // Convert equatorial vector to ecliptic coordinates
+    const ecl = Astronomy.Ecliptic(vec);
+    // elon is ecliptic longitude in degrees (0..360)
+    return ecl.elon;
+  }
+
+  // Detect retrograde: is the body's longitude decreasing right now?
+  function isRetrograde(bodyName, date) {
+    if (bodyName === 'Sun' || bodyName === 'Moon') return false;
+    // Ensure we have a real Date so we can add a day
+    const d = (date instanceof Date) ? date : new Date(date);
+    const now = getEclipticLongitude(bodyName, d);
+    const laterDate = new Date(d.getTime() + 24 * 3600 * 1000); // +1 day
+    const later = getEclipticLongitude(bodyName, laterDate);
+    // Handle wrap-around at 360°
+    let delta = later - now;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    return delta < 0;
+  }
+
+  function signFromLongitude(lon) {
+    const idx = Math.floor(lon / 30) % 12;
+    const deg = lon - idx * 30;
+    const d = Math.floor(deg);
+    const m = Math.floor((deg - d) * 60);
+    return { ...SIGNS[idx], signIndex: idx, degrees: d, minutes: m, rawDeg: deg };
+  }
+
+  // ———————————————————————————————————————
+  //  Draw the zodiac wheel
+  // ———————————————————————————————————————
+  function drawWheel(positions) {
+    const svg = document.getElementById('wheel');
+    svg.innerHTML = '';
+    const NS = 'http://www.w3.org/2000/svg';
+
+    const outerR = 180;
+    const signRingR = 160;
+    const innerSignR = 140;
+    const planetR = 115;
+    const degreeTickOuterR = 160;
+    const degreeTickInnerR = 155;
+
+    // Convert astrological longitude to SVG angle.
+    // 0° Aries at the LEFT (traditional chart ascendant position/9 o'clock),
+    // and signs go counter-clockwise (as in a natal chart).
+    // In SVG, y-axis points down, so we invert.
+    function lonToPoint(lon, r) {
+      // 0° Aries at left = SVG angle 180°, counter-clockwise
+      const svgAngleDeg = 180 - lon;
+      const rad = svgAngleDeg * Math.PI / 180;
+      return { x: r * Math.cos(rad), y: -r * Math.sin(rad) };
+    }
+
+    // Outer ring
+    const outer = document.createElementNS(NS, 'circle');
+    outer.setAttribute('cx', 0); outer.setAttribute('cy', 0);
+    outer.setAttribute('r', outerR);
+    outer.setAttribute('class', 'zodiac-ring');
+    svg.appendChild(outer);
+
+    // Sign ring
+    const signRing = document.createElementNS(NS, 'circle');
+    signRing.setAttribute('cx', 0); signRing.setAttribute('cy', 0);
+    signRing.setAttribute('r', signRingR);
+    signRing.setAttribute('class', 'zodiac-ring');
+    svg.appendChild(signRing);
+
+    // Inner sign ring
+    const innerRing = document.createElementNS(NS, 'circle');
+    innerRing.setAttribute('cx', 0); innerRing.setAttribute('cy', 0);
+    innerRing.setAttribute('r', innerSignR);
+    innerRing.setAttribute('class', 'zodiac-ring');
+    svg.appendChild(innerRing);
+
+    // Degree ticks every 5° (major every 30°)
+    for (let d = 0; d < 360; d += 5) {
+      const isMajor = d % 30 === 0;
+      const r1 = isMajor ? 150 : degreeTickInnerR;
+      const r2 = degreeTickOuterR;
+      const p1 = lonToPoint(d, r1);
+      const p2 = lonToPoint(d, r2);
+      const line = document.createElementNS(NS, 'line');
+      line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+      line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+      line.setAttribute('class', isMajor ? 'degree-tick-major' : 'degree-tick');
+      svg.appendChild(line);
+    }
+
+    // Sign divisions (every 30°) radiating outward
+    for (let i = 0; i < 12; i++) {
+      const lon = i * 30;
+      const p1 = lonToPoint(lon, innerSignR);
+      const p2 = lonToPoint(lon, signRingR);
+      const line = document.createElementNS(NS, 'line');
+      line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+      line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+      line.setAttribute('class', 'zodiac-division');
+      svg.appendChild(line);
+    }
+
+    // Sign glyphs in their ring
+    for (let i = 0; i < 12; i++) {
+      const midLon = i * 30 + 15;
+      const p = lonToPoint(midLon, 150);
+      const glyph = document.createElementNS(NS, 'text');
+      glyph.setAttribute('x', p.x); glyph.setAttribute('y', p.y);
+      glyph.setAttribute('text-anchor', 'middle');
+      glyph.setAttribute('dominant-baseline', 'middle');
+      glyph.setAttribute('class', 'zodiac-glyph');
+      glyph.textContent = SIGNS[i].glyph;
+      svg.appendChild(glyph);
+    }
+
+    // Center ornament
+    const ornament1 = document.createElementNS(NS, 'circle');
+    ornament1.setAttribute('cx', 0); ornament1.setAttribute('cy', 0);
+    ornament1.setAttribute('r', 30);
+    ornament1.setAttribute('class', 'center-ornament');
+    svg.appendChild(ornament1);
+
+    const ornament2 = document.createElementNS(NS, 'circle');
+    ornament2.setAttribute('cx', 0); ornament2.setAttribute('cy', 0);
+    ornament2.setAttribute('r', 22);
+    ornament2.setAttribute('class', 'center-ornament');
+    svg.appendChild(ornament2);
+
+    // Earth symbol at center
+    const earthSymbol = document.createElementNS(NS, 'text');
+    earthSymbol.setAttribute('x', 0); earthSymbol.setAttribute('y', -2);
+    earthSymbol.setAttribute('text-anchor', 'middle');
+    earthSymbol.setAttribute('dominant-baseline', 'middle');
+    earthSymbol.setAttribute('fill', 'var(--gold)');
+    earthSymbol.setAttribute('font-size', '18');
+    earthSymbol.setAttribute('font-family', 'Cormorant Garamond, serif');
+    earthSymbol.textContent = '⊕';
+    svg.appendChild(earthSymbol);
+
+    const centerLabel = document.createElementNS(NS, 'text');
+    centerLabel.setAttribute('x', 0); centerLabel.setAttribute('y', 14);
+    centerLabel.setAttribute('class', 'center-text');
+    centerLabel.textContent = 'TERRA';
+    svg.appendChild(centerLabel);
+
+    // —————————————————————————————
+    // Plot planets — avoid overlap by nudging radially
+    // —————————————————————————————
+    // Sort by longitude and detect clusters
+    const sorted = [...positions].sort((a, b) => a.longitude - b.longitude);
+    const usedRadii = {};
+
+    sorted.forEach((p, i) => {
+      // Check proximity to other planets
+      let r = planetR;
+      for (const other of sorted) {
+        if (other === p) continue;
+        const angularDist = Math.abs(((p.longitude - other.longitude + 540) % 360) - 180);
+        const delta = 180 - angularDist; // how close they are
+        if (delta < 6 && usedRadii[other.name]) {
+          // Too close — push outward or inward
+          if (usedRadii[other.name] === planetR) r = planetR - 12;
+          else if (usedRadii[other.name] === planetR - 12) r = planetR + 12;
+        }
+      }
+      usedRadii[p.name] = r;
+    });
+
+    positions.forEach(p => {
+      const r = usedRadii[p.name] || planetR;
+      const point = lonToPoint(p.longitude, r);
+
+      // Wrap planet elements in a group for unified hover
+      const group = document.createElementNS(NS, 'g');
+      group.setAttribute('class', 'planet-group');
+      group.setAttribute('data-planet', p.name);
+
+      // Line from tick to planet
+      const tickPoint = lonToPoint(p.longitude, 140);
+      const line = document.createElementNS(NS, 'line');
+      line.setAttribute('x1', tickPoint.x); line.setAttribute('y1', tickPoint.y);
+      line.setAttribute('x2', point.x); line.setAttribute('y2', point.y);
+      line.setAttribute('class', 'planet-line');
+      group.appendChild(line);
+
+      // Planet dot
+      const dot = document.createElementNS(NS, 'circle');
+      dot.setAttribute('cx', point.x); dot.setAttribute('cy', point.y);
+      dot.setAttribute('r', p.name === 'Sun' ? 5 : 3.5);
+      dot.setAttribute('class', `planet-dot ${p.dotClass}`);
+      group.appendChild(dot);
+
+      // Planet glyph next to dot
+      const glyphPoint = lonToPoint(p.longitude, r - 15);
+      const glyph = document.createElementNS(NS, 'text');
+      glyph.setAttribute('x', glyphPoint.x); glyph.setAttribute('y', glyphPoint.y);
+      glyph.setAttribute('text-anchor', 'middle');
+      glyph.setAttribute('dominant-baseline', 'middle');
+      glyph.setAttribute('class', 'planet-label');
+      glyph.textContent = p.glyph;
+      group.appendChild(glyph);
+
+      // Large invisible hit area centered on the glyph for easy hovering
+      const hit = document.createElementNS(NS, 'circle');
+      hit.setAttribute('cx', glyphPoint.x); hit.setAttribute('cy', glyphPoint.y);
+      hit.setAttribute('r', 14);
+      hit.setAttribute('class', 'hit-area');
+      group.appendChild(hit);
+
+      svg.appendChild(group);
+    });
+  }
+
+  // ———————————————————————————————————————
+  //  Render planet list
+  // ———————————————————————————————————————
+  function renderPlanets(positions) {
+    const container = document.getElementById('planetsContainer');
+    container.innerHTML = '';
+
+    positions.forEach((p, i) => {
+      const sign = signFromLongitude(p.longitude);
+      const row = document.createElement('div');
+      row.className = 'planet-row';
+      row.setAttribute('data-planet', p.name);
+      row.style.animationDelay = `${i * 60}ms`;
+      row.innerHTML = `
+        <div class="glyph">${p.glyph}</div>
+        <div class="planet-info">
+          <div class="name">${p.name} <span style="color: var(--ink-faint); font-size: 1.1rem;">in</span> <em>${sign.name}</em> ${sign.glyph}</div>
+          <div class="sign-line">
+            <span class="sign-name">${sign.element}</span> · ${p.retrograde ? '<span class="retro">℞ Retrograde</span>' : 'Direct'}
+          </div>
+        </div>
+        <div class="planet-degree">
+          <div class="degree-big">${sign.degrees}° ${String(sign.minutes).padStart(2, '0')}′</div>
+          <div class="degree-small">${p.longitude.toFixed(2)}° ABS</div>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  // ———————————————————————————————————————
+  //  Hover interactions — tooltip + cross-highlighting
+  // ———————————————————————————————————————
+  let currentPositions = [];
+
+  function setupHoverInteractions() {
+    const svg = document.getElementById('wheel');
+    const card = document.getElementById('infoCard');
+    const icGlyph = document.getElementById('icGlyph');
+    const icHeadline = document.getElementById('icHeadline');
+    const icDetail = document.getElementById('icDetail');
+
+    function showInfoFor(planetName, mouseEvent) {
+      const p = currentPositions.find(x => x.name === planetName);
+      if (!p) return;
+      const sign = signFromLongitude(p.longitude);
+
+      icGlyph.textContent = p.glyph;
+      icHeadline.innerHTML = `${p.name} in <em>${sign.name}</em> ${sign.glyph}`;
+
+      const degStr = `${sign.degrees}° ${String(sign.minutes).padStart(2, '0')}′`;
+      const retroStr = p.retrograde ? ' · <span class="retro">℞ Retrograde</span>' : '';
+      icDetail.innerHTML = `${degStr} of ${sign.name}<br>Element: ${sign.element}${retroStr}`;
+
+      // Highlight in wheel + list
+      document.querySelectorAll('.planet-group').forEach(g => {
+        g.classList.toggle('active', g.dataset.planet === planetName);
+      });
+      document.querySelectorAll('.planet-row').forEach(r => {
+        r.classList.toggle('active', r.dataset.planet === planetName);
+      });
+      svg.classList.add('has-active');
+
+      card.classList.add('visible');
+      card.setAttribute('aria-hidden', 'false');
+      positionCard(mouseEvent);
+    }
+
+    function hideInfo() {
+      card.classList.remove('visible');
+      card.setAttribute('aria-hidden', 'true');
+      document.querySelectorAll('.planet-group.active').forEach(g => g.classList.remove('active'));
+      document.querySelectorAll('.planet-row.active').forEach(r => r.classList.remove('active'));
+      svg.classList.remove('has-active');
+    }
+
+    function positionCard(e) {
+      if (!e) return;
+      const cardRect = card.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let x = e.clientX + 16;
+      let y = e.clientY + 16;
+      if (x + cardRect.width > vw - 12) x = e.clientX - cardRect.width - 16;
+      if (y + cardRect.height > vh - 12) y = e.clientY - cardRect.height - 16;
+      if (x < 12) x = 12;
+      if (y < 12) y = 12;
+      card.style.left = x + 'px';
+      card.style.top = y + 'px';
+    }
+
+    // Event delegation on SVG — catches hover on groups
+    svg.addEventListener('mouseover', (e) => {
+      const group = e.target.closest('.planet-group');
+      if (group) showInfoFor(group.dataset.planet, e);
+    });
+    svg.addEventListener('mousemove', (e) => {
+      const group = e.target.closest('.planet-group');
+      if (group) positionCard(e);
+    });
+    svg.addEventListener('mouseout', (e) => {
+      // Only hide if leaving to something outside the group
+      const group = e.target.closest('.planet-group');
+      const related = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('.planet-group') : null;
+      if (group && group !== related) hideInfo();
+    });
+
+    // Event delegation on the planets list
+    const list = document.getElementById('planetsContainer');
+    list.addEventListener('mouseover', (e) => {
+      const row = e.target.closest('.planet-row');
+      if (row) showInfoFor(row.dataset.planet, e);
+    });
+    list.addEventListener('mousemove', (e) => {
+      const row = e.target.closest('.planet-row');
+      if (row) positionCard(e);
+    });
+    list.addEventListener('mouseleave', hideInfo);
+  }
+
+  // ———————————————————————————————————————
+  //  Main — compute and render
+  // ———————————————————————————————————————
+  function updateAll() {
+    const now = new Date();
+
+    const positions = BODIES.map(b => ({
+      ...b,
+      longitude: getEclipticLongitude(b.body, now),
+      retrograde: isRetrograde(b.body, now),
+    }));
+
+    currentPositions = positions;
+
+    // Date bar
+    const dateStr = now.toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const utcStr = now.toUTCString().slice(17, 25) + ' UTC';
+
+    document.getElementById('dateBar').innerHTML = `
+      <span><strong>${dateStr}</strong></span>
+      <span>${timeStr} Local</span>
+      <span>${utcStr}</span>
+    `;
+
+    drawWheel(positions);
+    renderPlanets(positions);
+  }
+
+  // Wait for library to be ready
+  function start() {
+    if (typeof Astronomy === 'undefined') {
+      setTimeout(start, 100);
+      return;
+    }
+    updateAll();
+    setupHoverInteractions();
+    // Refresh every minute so the Moon's motion becomes visible over time
+    setInterval(updateAll, 60_000);
+  }
+
+  start();
+</script>
+</body>
+</html>
